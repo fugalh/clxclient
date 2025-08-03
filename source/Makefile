@@ -25,6 +25,23 @@ PREFIX ?= /usr/local
 INCDIR ?= $(PREFIX)/include
 LIBDIR ?= $(PREFIX)/lib$(SUFFIX)
 
+# macOS/XQuartz specific settings
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+    # XQuartz paths on macOS
+    CPPFLAGS += -I/opt/X11/include
+    LDFLAGS += -L/opt/X11/lib
+    # Use .dylib extension on macOS
+    LIB_EXT = dylib
+    # Disable ldconfig on macOS (not available)
+    LDCONFIG = 
+    # Reset suffix for macOS (don't use lib64 style suffixes)
+    SUFFIX = 
+else
+    LIB_EXT = so
+    LDCONFIG = ldconfig
+endif
+
 MAJVERS = 3
 MINVERS = 9.2
 VERSION = $(MAJVERS).$(MINVERS)
@@ -37,17 +54,21 @@ CXXFLAGS += -march=native
 LDLIBS +=
 
 
-CLXCLIENT_SO = libclxclient.so
+CLXCLIENT_SO = libclxclient.$(LIB_EXT)
 CLXCLIENT_MAJ = $(CLXCLIENT_SO).$(MAJVERS)
 CLXCLIENT_MIN = $(CLXCLIENT_MAJ).$(MINVERS)
-CLXCLIENT_DEP = -lpthread -lXft -lX11
+CLXCLIENT_DEP = -lpthread -lXft -lX11 -lclthreads
 CLXCLIENT_O = xdisplay.o xresman.o xhandler.o xwindow.o xdraw.o \
 	button.o textip.o enumip.o menuwin.o scale.o slider.o scroll.o mclist.o meter.o
 CLXCLIENT_H = clxclient.h
 
 
 $(CLXCLIENT_MIN): $(CLXCLIENT_O)
+ifeq ($(UNAME_S),Darwin)
+	$(CXX) -dynamiclib $(LDFLAGS) -install_name $(LIBDIR)/$(CLXCLIENT_MAJ) -current_version $(VERSION) -compatibility_version $(MAJVERS) -o $(CLXCLIENT_MIN) $(CLXCLIENT_O) $(CLXCLIENT_DEP)
+else
 	$(CXX) -shared $(LDFLAGS) -Wl,-soname,$(CLXCLIENT_MAJ) -o $(CLXCLIENT_MIN) $(CLXCLIENT_O) $(CLXCLIENT_DEP)
+endif
 
 
 install:	$(CLXCLIENT_MIN)
@@ -55,7 +76,9 @@ install:	$(CLXCLIENT_MIN)
 	install -d $(DESTDIR)$(LIBDIR)
 	install -m 644 $(CLXCLIENT_H) $(DESTDIR)$(INCDIR)
 	install -m 755 $(CLXCLIENT_MIN) $(DESTDIR)$(LIBDIR)
-	ldconfig
+ifneq ($(LDCONFIG),)
+	$(LDCONFIG)
+endif
 	ln -sf $(CLXCLIENT_MIN) $(DESTDIR)$(LIBDIR)/$(CLXCLIENT_SO)
 
 uninstall:
@@ -63,5 +86,5 @@ uninstall:
 	rm -rf $(DESTDIR)$(LIBDIR)/libclxclient*
 
 clean:
-	/bin/rm -f *~ *.o *.a *.d *.so.*
+	/bin/rm -f *~ *.o *.a *.d *.so.* *.dylib
 
