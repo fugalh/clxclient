@@ -79,6 +79,7 @@ install:	$(CLXCLIENT_MIN)
 ifneq ($(LDCONFIG),)
 	$(LDCONFIG)
 endif
+	ln -sf $(CLXCLIENT_MIN) $(DESTDIR)$(LIBDIR)/$(CLXCLIENT_MAJ)
 	ln -sf $(CLXCLIENT_MIN) $(DESTDIR)$(LIBDIR)/$(CLXCLIENT_SO)
 
 uninstall:
